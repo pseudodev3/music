@@ -4,11 +4,11 @@ export const MUSIC_PROVIDERS: MusicProviderDescriptor[] = [
   {
     id: "spotify",
     name: "Spotify",
-    shortLabel: "direct",
+    shortLabel: "beta",
     status: "available",
     accent: "#1ED760",
     description: "Read your currently playing track directly.",
-    detail: "Spotify Web API · Premium currently required",
+    detail: "Premium · direct connection",
   },
   {
     id: "lastfm",
@@ -17,16 +17,16 @@ export const MUSIC_PROVIDERS: MusicProviderDescriptor[] = [
     status: "bridge",
     accent: "#D94B44",
     description: "A bridge for services you already scrobble.",
-    detail: "Spotify · YouTube · Tidal · Deezer · SoundCloud · more",
+    detail: "Works with your scrobbled listening",
   },
   {
     id: "apple-music",
     name: "Apple Music",
-    shortLabel: "next",
+    shortLabel: "soon",
     status: "planned",
     accent: "#FA4B68",
     description: "Native Apple Music system-player adapter.",
-    detail: "iPhone native build · MusicKit",
+    detail: "Native iPhone support coming soon",
   },
 ];
 
