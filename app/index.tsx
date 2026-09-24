@@ -3,6 +3,7 @@ import {
   ActivityIndicator,
   Pressable,
   SafeAreaView,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -20,6 +21,9 @@ import { palette, radius } from "../src/theme";
 
 export default function ConnectScreen() {
   const { width } = useWindowDimensions();
+  const isCompact = width < 480;
+  const isNarrow = width < 370;
+
   const {
     provider,
     providers,
@@ -37,8 +41,8 @@ export default function ConnectScreen() {
 
   const primaryLabel = useMemo(() => {
     if (isBusy) return `Connecting ${provider.name}…`;
-    if (isPlanned) return `${provider.name} adapter is next`;
-    if (providerId === "lastfm") return "Use Last.fm bridge";
+    if (isPlanned) return `${provider.name} · coming soon`;
+    if (providerId === "lastfm") return "Continue with Last.fm";
     return `Connect ${provider.name}`;
   }, [isBusy, isPlanned, provider.name, providerId]);
 
@@ -50,6 +54,12 @@ export default function ConnectScreen() {
 
   const handleConnect = async () => {
     if (isBusy || isPlanned) return;
+
+    if (providerId === "lastfm" && !lastFmUsername.trim()) {
+      setMessage("Enter your Last.fm username to continue.");
+      return;
+    }
+
     setMessage(null);
     await Haptics.selectionAsync();
 
@@ -66,14 +76,19 @@ export default function ConnectScreen() {
     if (result === "unconfigured") {
       setMessage(
         providerId === "spotify"
-          ? "Spotify needs an app Client ID before it can connect."
-          : "Add a Last.fm API key and your Last.fm username first."
+          ? "Spotify connection isn't open in this beta yet."
+          : "Last.fm connection isn't open in this beta yet."
       );
       return;
     }
 
+    if (result === "unavailable") {
+      setMessage(`${provider.name} is coming soon.`);
+      return;
+    }
+
     if (result === "error") {
-      setMessage(`${provider.name} could not connect. Try again.`);
+      setMessage(`${provider.name} couldn't connect. Try again.`);
     }
   };
 
@@ -81,37 +96,65 @@ export default function ConnectScreen() {
     <SafeAreaView style={styles.screen}>
       <AmbientBackdrop />
 
-      <View style={[styles.shell, width > 760 && styles.shellWide]}>
+      <ScrollView
+        style={styles.scroll}
+        contentContainerStyle={[
+          styles.shell,
+          width > 760 && styles.shellWide,
+          isCompact && styles.shellCompact,
+        ]}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
         <View style={styles.topbar}>
           <Text style={styles.wordmark}>music</Text>
-          <View style={styles.liveBadge}>
+          <View style={[styles.liveBadge, isNarrow && styles.liveBadgeNarrow]}>
             <View style={styles.liveDot} />
             <Text style={styles.liveBadgeText}>shared presence</Text>
           </View>
         </View>
 
-        <View style={styles.hero}>
-          <Text style={styles.eyebrow}>SAME SONG · SAME MOMENT</Text>
-          <Text style={[styles.title, width > 760 && styles.titleWide]}>
+        <View style={[styles.hero, isCompact && styles.heroCompact]}>
+          <Text style={[styles.eyebrow, isCompact && styles.eyebrowCompact]}>
+            SAME SONG · SAME MOMENT
+          </Text>
+
+          <Text
+            style={[
+              styles.title,
+              width > 760 && styles.titleWide,
+              isCompact && styles.titleCompact,
+              isNarrow && styles.titleNarrow,
+            ]}
+          >
             Someone else{"\n"}is here.
           </Text>
-          <Text style={styles.body}>
+
+          <Text style={[styles.body, isCompact && styles.bodyCompact]}>
             Bring the music app you already use. When someone is hearing the
             same track at the same time, you quietly share a room until the
             song moves on.
           </Text>
 
-          <View style={styles.providerSection}>
+          <View
+            style={[
+              styles.providerSection,
+              isCompact && styles.providerSectionCompact,
+            ]}
+          >
             <Text style={styles.sectionLabel}>LISTEN THROUGH</Text>
+
             <View style={styles.providerList}>
               {providers.map((item) => {
                 const selected = item.id === providerId;
+
                 return (
                   <Pressable
                     key={item.id}
                     onPress={() => void chooseProvider(item.id)}
                     style={[
                       styles.providerRow,
+                      isCompact && styles.providerRowCompact,
                       selected && styles.providerRowSelected,
                     ]}
                   >
@@ -121,11 +164,13 @@ export default function ConnectScreen() {
                         { backgroundColor: item.accent },
                       ]}
                     />
+
                     <View style={styles.providerCopy}>
                       <View style={styles.providerTitleRow}>
                         <Text
                           style={[
                             styles.providerName,
+                            isCompact && styles.providerNameCompact,
                             selected && styles.providerNameSelected,
                           ]}
                         >
@@ -135,29 +180,45 @@ export default function ConnectScreen() {
                           {item.shortLabel}
                         </Text>
                       </View>
-                      <Text style={styles.providerDetail} numberOfLines={1}>
+
+                      <Text
+                        style={[
+                          styles.providerDetail,
+                          isCompact && styles.providerDetailCompact,
+                        ]}
+                        numberOfLines={1}
+                      >
                         {item.detail}
                       </Text>
                     </View>
-                    <Text
+
+                    <View
                       style={[
-                        styles.providerCheck,
-                        selected && styles.providerCheckSelected,
+                        styles.selectionRing,
+                        selected && styles.selectionRingSelected,
                       ]}
                     >
-                      {selected ? "●" : "○"}
-                    </Text>
+                      {selected ? <View style={styles.selectionDot} /> : null}
+                    </View>
                   </Pressable>
                 );
               })}
             </View>
 
             {providerId === "lastfm" ? (
-              <View style={styles.lastFmInputWrap}>
+              <View
+                style={[
+                  styles.lastFmInputWrap,
+                  isCompact && styles.lastFmInputWrapCompact,
+                ]}
+              >
                 <Text style={styles.inputLabel}>LAST.FM USERNAME</Text>
                 <TextInput
                   value={lastFmUsername}
-                  onChangeText={setLastFmUsername}
+                  onChangeText={(value) => {
+                    setLastFmUsername(value);
+                    if (message) setMessage(null);
+                  }}
                   autoCapitalize="none"
                   autoCorrect={false}
                   placeholder="your username"
@@ -165,52 +226,67 @@ export default function ConnectScreen() {
                   style={styles.lastFmInput}
                 />
                 <Text style={styles.bridgeNote}>
-                  Last.fm can act as the listening bridge for services you
-                  already scrobble there.
+                  Already scrobbling? This can bridge whatever service you're
+                  listening on.
                 </Text>
               </View>
             ) : null}
 
             {providerId === "spotify" ? (
               <Text style={styles.providerNote}>
-                Spotify's current Web API rules require Premium for developer
-                access. The app never controls your playback.
+                Limited beta. Spotify currently requires Premium for direct
+                access.
               </Text>
             ) : null}
 
             {isPlanned ? (
               <Text style={styles.providerNote}>
-                Apple Music needs a native iPhone adapter so it can read the
-                system Music player's current item. It won't be faked through
-                the web build.
+                Apple Music support is being built for the native iPhone app.
               </Text>
             ) : null}
           </View>
 
-          <View style={styles.preview}>
-            <View style={styles.previewArt}>
-              <View style={styles.previewRingOuter} />
-              <View style={styles.previewRingInner} />
-              <View
-                style={[
-                  styles.previewCore,
-                  { backgroundColor: provider.accent },
-                ]}
-              >
-                <Text style={styles.previewNote}>♪</Text>
+          {!isCompact ? (
+            <View style={styles.preview}>
+              <View style={styles.previewArt}>
+                <View style={styles.previewRingOuter} />
+                <View style={styles.previewRingInner} />
+                <View
+                  style={[
+                    styles.previewCore,
+                    { backgroundColor: provider.accent },
+                  ]}
+                >
+                  <Text style={styles.previewNote}>♪</Text>
+                </View>
+              </View>
+              <PresenceCluster listeners={DEMO_LISTENERS} compact />
+            </View>
+          ) : (
+            <View style={styles.previewCompact}>
+              <View style={styles.previewCompactLine}>
+                <View
+                  style={[
+                    styles.previewCompactDot,
+                    { backgroundColor: provider.accent },
+                  ]}
+                />
+                <Text style={styles.previewCompactText}>
+                  rooms appear when listeners overlap
+                </Text>
               </View>
             </View>
-            <PresenceCluster listeners={DEMO_LISTENERS} compact />
-          </View>
+          )}
         </View>
 
-        <View style={styles.actions}>
+        <View style={[styles.actions, isCompact && styles.actionsCompact]}>
           <Pressable
             accessibilityRole="button"
             onPress={handleConnect}
             disabled={isBusy || isPlanned}
             style={({ pressed }) => [
               styles.primaryButton,
+              isCompact && styles.primaryButtonCompact,
               { backgroundColor: provider.accent },
               pressed && !isPlanned && styles.primaryButtonPressed,
               (isBusy || isPlanned) && styles.primaryButtonDisabled,
@@ -227,6 +303,7 @@ export default function ConnectScreen() {
             }
             style={({ pressed }) => [
               styles.previewButton,
+              isCompact && styles.previewButtonCompact,
               pressed && styles.previewButtonPressed,
             ]}
           >
@@ -234,32 +311,47 @@ export default function ConnectScreen() {
             <Text style={styles.previewArrow}>↗</Text>
           </Pressable>
 
-          {message ? <Text style={styles.error}>{message}</Text> : null}
+          {message ? <Text style={styles.message}>{message}</Text> : null}
 
           <Text style={styles.privacy}>
-            We read now-playing metadata only. We don't stream or rebroadcast
-            the music.
+            We only read what's playing. We don't stream or rebroadcast the
+            music.
           </Text>
         </View>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: palette.ink },
-  shell: {
+  screen: {
     flex: 1,
-    alignSelf: "center",
+    backgroundColor: palette.ink,
+  },
+  scroll: {
+    flex: 1,
+  },
+  shell: {
     width: "100%",
     maxWidth: 620,
+    alignSelf: "center",
     paddingHorizontal: 22,
-    paddingTop: 8,
-    paddingBottom: 18,
+    paddingTop: 10,
+    paddingBottom: 28,
   },
-  shellWide: { maxWidth: 760, paddingHorizontal: 42 },
+  shellWide: {
+    maxWidth: 760,
+    paddingHorizontal: 42,
+    paddingTop: 18,
+    paddingBottom: 42,
+  },
+  shellCompact: {
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 30,
+  },
   topbar: {
-    minHeight: 52,
+    minHeight: 48,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -281,6 +373,9 @@ const styles = StyleSheet.create({
     borderColor: palette.line,
     backgroundColor: "rgba(18,21,17,0.64)",
   },
+  liveBadgeNarrow: {
+    paddingHorizontal: 9,
+  },
   liveDot: {
     width: 6,
     height: 6,
@@ -292,13 +387,24 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 0.2,
   },
-  hero: { flex: 1, justifyContent: "center", paddingVertical: 20 },
+  hero: {
+    paddingTop: 56,
+    paddingBottom: 20,
+  },
+  heroCompact: {
+    paddingTop: 28,
+    paddingBottom: 12,
+  },
   eyebrow: {
     color: palette.mossBright,
     fontSize: 11,
     fontWeight: "700",
     letterSpacing: 1.45,
     marginBottom: 14,
+  },
+  eyebrowCompact: {
+    fontSize: 10,
+    marginBottom: 12,
   },
   title: {
     color: palette.text,
@@ -307,7 +413,20 @@ const styles = StyleSheet.create({
     letterSpacing: -2.2,
     fontWeight: "650",
   },
-  titleWide: { fontSize: 62, lineHeight: 62, letterSpacing: -3.1 },
+  titleWide: {
+    fontSize: 62,
+    lineHeight: 62,
+    letterSpacing: -3.1,
+  },
+  titleCompact: {
+    fontSize: 39,
+    lineHeight: 39,
+    letterSpacing: -1.7,
+  },
+  titleNarrow: {
+    fontSize: 35,
+    lineHeight: 35,
+  },
   body: {
     color: palette.textSoft,
     fontSize: 15,
@@ -315,13 +434,23 @@ const styles = StyleSheet.create({
     maxWidth: 560,
     marginTop: 16,
   },
-  providerSection: { marginTop: 28 },
+  bodyCompact: {
+    fontSize: 14,
+    lineHeight: 21,
+    marginTop: 14,
+  },
+  providerSection: {
+    marginTop: 28,
+  },
+  providerSectionCompact: {
+    marginTop: 24,
+  },
   sectionLabel: {
     color: palette.textDim,
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 1.2,
-    marginBottom: 8,
+    marginBottom: 7,
   },
   providerList: {
     borderTopWidth: 1,
@@ -336,26 +465,75 @@ const styles = StyleSheet.create({
     paddingHorizontal: 4,
     gap: 12,
   },
-  providerRowSelected: { backgroundColor: "rgba(255,255,255,0.025)" },
-  providerMark: { width: 8, height: 8, borderRadius: 99 },
-  providerCopy: { flex: 1, minWidth: 0 },
-  providerTitleRow: { flexDirection: "row", alignItems: "center", gap: 8 },
+  providerRowCompact: {
+    minHeight: 52,
+    gap: 10,
+  },
+  providerRowSelected: {
+    backgroundColor: "rgba(255,255,255,0.025)",
+  },
+  providerMark: {
+    width: 7,
+    height: 7,
+    borderRadius: 99,
+  },
+  providerCopy: {
+    flex: 1,
+    minWidth: 0,
+  },
+  providerTitleRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 7,
+  },
   providerName: {
     color: palette.textSoft,
     fontSize: 14,
     fontWeight: "650",
   },
-  providerNameSelected: { color: palette.text },
+  providerNameCompact: {
+    fontSize: 13,
+  },
+  providerNameSelected: {
+    color: palette.text,
+  },
   providerTag: {
     color: palette.textDim,
-    fontSize: 9,
+    fontSize: 8,
     textTransform: "uppercase",
     letterSpacing: 0.8,
   },
-  providerDetail: { color: palette.textDim, fontSize: 11, marginTop: 3 },
-  providerCheck: { color: palette.textDim, fontSize: 15 },
-  providerCheckSelected: { color: palette.text },
+  providerDetail: {
+    color: palette.textDim,
+    fontSize: 11,
+    marginTop: 3,
+  },
+  providerDetailCompact: {
+    fontSize: 10,
+    marginTop: 2,
+  },
+  selectionRing: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: palette.textDim,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  selectionRingSelected: {
+    borderColor: palette.text,
+  },
+  selectionDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: palette.text,
+  },
   lastFmInputWrap: {
+    paddingTop: 14,
+  },
+  lastFmInputWrapCompact: {
     paddingTop: 12,
   },
   inputLabel: {
@@ -365,8 +543,8 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
   lastFmInput: {
-    marginTop: 7,
-    minHeight: 42,
+    marginTop: 4,
+    minHeight: 40,
     borderBottomWidth: 1,
     borderColor: palette.lineStrong,
     color: palette.text,
@@ -375,15 +553,15 @@ const styles = StyleSheet.create({
   },
   bridgeNote: {
     color: palette.textDim,
-    fontSize: 11,
-    lineHeight: 16,
-    marginTop: 8,
+    fontSize: 10,
+    lineHeight: 15,
+    marginTop: 7,
   },
   providerNote: {
     color: palette.textDim,
-    fontSize: 11,
-    lineHeight: 16,
-    marginTop: 10,
+    fontSize: 10,
+    lineHeight: 15,
+    marginTop: 9,
   },
   preview: {
     marginTop: 24,
@@ -424,8 +602,39 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  previewNote: { color: "#11150F", fontSize: 14, fontWeight: "800" },
-  actions: { gap: 10 },
+  previewNote: {
+    color: "#11150F",
+    fontSize: 14,
+    fontWeight: "800",
+  },
+  previewCompact: {
+    marginTop: 18,
+    paddingTop: 13,
+    borderTopWidth: 1,
+    borderColor: palette.line,
+  },
+  previewCompactLine: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  previewCompactDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  previewCompactText: {
+    color: palette.textDim,
+    fontSize: 10,
+    letterSpacing: 0.15,
+  },
+  actions: {
+    gap: 10,
+    paddingTop: 14,
+  },
+  actionsCompact: {
+    paddingTop: 10,
+  },
   primaryButton: {
     minHeight: 56,
     borderRadius: radius.md,
@@ -434,8 +643,16 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 10,
   },
-  primaryButtonPressed: { transform: [{ scale: 0.988 }], opacity: 0.92 },
-  primaryButtonDisabled: { opacity: 0.42 },
+  primaryButtonCompact: {
+    minHeight: 52,
+  },
+  primaryButtonPressed: {
+    transform: [{ scale: 0.988 }],
+    opacity: 0.92,
+  },
+  primaryButtonDisabled: {
+    opacity: 0.42,
+  },
   primaryButtonText: {
     color: "#0A0B09",
     fontSize: 15,
@@ -453,19 +670,34 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
   },
-  previewButtonPressed: { backgroundColor: "rgba(31,35,28,0.76)" },
+  previewButtonCompact: {
+    minHeight: 46,
+  },
+  previewButtonPressed: {
+    backgroundColor: "rgba(31,35,28,0.76)",
+  },
   previewButtonText: {
     color: palette.textSoft,
     fontSize: 14,
     fontWeight: "600",
   },
-  previewArrow: { color: palette.textDim, fontSize: 16 },
-  error: { color: "#D7A69C", fontSize: 12, textAlign: "center" },
-  privacy: {
+  previewArrow: {
     color: palette.textDim,
+    fontSize: 16,
+  },
+  message: {
+    color: "#D7B2A8",
     fontSize: 11,
     lineHeight: 16,
     textAlign: "center",
-    marginTop: 4,
+    paddingHorizontal: 12,
+  },
+  privacy: {
+    color: palette.textDim,
+    fontSize: 10,
+    lineHeight: 15,
+    textAlign: "center",
+    marginTop: 2,
+    paddingHorizontal: 14,
   },
 });
