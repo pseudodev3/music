@@ -2,6 +2,7 @@ import type { Listener, ListeningTrack } from "../types";
 
 export const DEMO_TRACK: ListeningTrack = {
   id: "demo-nights",
+  provider: "spotify",
   title: "Nights",
   artist: "Frank Ocean",
   album: "Blonde",

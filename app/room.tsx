@@ -17,8 +17,8 @@ import { LinearGradient } from "expo-linear-gradient";
 import { router, useLocalSearchParams } from "expo-router";
 import { AmbientBackdrop } from "../src/components/AmbientBackdrop";
 import { PresenceCluster } from "../src/components/PresenceCluster";
+import { useMusic } from "../src/context/MusicContext";
 import { DEMO_LISTENERS, DEMO_TRACK } from "../src/data/demo";
-import { useSpotify } from "../src/context/SpotifyContext";
 import { palette, radius } from "../src/theme";
 import type { ListeningTrack } from "../src/types";
 
@@ -55,7 +55,13 @@ function AlbumArtwork({ track, size }: { track: ListeningTrack; size: number }) 
   );
 }
 
-function WaitingForTrack({ onRefresh }: { onRefresh: () => void }) {
+function WaitingForTrack({
+  providerName,
+  onRefresh,
+}: {
+  providerName: string;
+  onRefresh: () => void;
+}) {
   return (
     <View style={styles.waiting}>
       <View style={styles.waitingOrb}>
@@ -63,8 +69,8 @@ function WaitingForTrack({ onRefresh }: { onRefresh: () => void }) {
       </View>
       <Text style={styles.waitingTitle}>Nothing is playing yet.</Text>
       <Text style={styles.waitingBody}>
-        Start a song in Spotify, then come back. The room wakes up around the
-        track you’re hearing.
+        Start a song through {providerName}, then come back. The room wakes up
+        around whatever you're hearing.
       </Text>
       <Pressable onPress={onRefresh} style={styles.refreshButton}>
         <Text style={styles.refreshText}>Check again</Text>
@@ -76,12 +82,19 @@ function WaitingForTrack({ onRefresh }: { onRefresh: () => void }) {
 export default function RoomScreen() {
   const params = useLocalSearchParams<{ demo?: string }>();
   const { width } = useWindowDimensions();
-  const { authState, track, refreshTrack, disconnect } = useSpotify();
+  const {
+    provider,
+    authState,
+    track,
+    refreshTrack,
+    disconnect,
+  } = useMusic();
+
   const [message, setMessage] = useState("");
   const [sentMessage, setSentMessage] = useState<string | null>(null);
   const [waves, setWaves] = useState(2);
 
-  const isDemo = params.demo === "1" || authState === "demo";
+  const isDemo = params.demo === "1";
   const activeTrack = isDemo ? DEMO_TRACK : track;
   const artSize = Math.min(width - 56, width > 760 ? 330 : 286);
 
@@ -97,7 +110,10 @@ export default function RoomScreen() {
 
   const progress = useMemo(() => {
     if (!activeTrack?.durationMs) return 0;
-    return Math.min(1, Math.max(0, activeTrack.progressMs / activeTrack.durationMs));
+    return Math.min(
+      1,
+      Math.max(0, activeTrack.progressMs / activeTrack.durationMs)
+    );
   }, [activeTrack]);
 
   const sendMessage = async () => {
@@ -130,11 +146,16 @@ export default function RoomScreen() {
             <Text style={styles.roomLabel}>ROOM ASLEEP</Text>
             <View style={styles.iconButtonSpacer} />
           </View>
-          <WaitingForTrack onRefresh={() => void refreshTrack()} />
+          <WaitingForTrack
+            providerName={provider.name}
+            onRefresh={() => void refreshTrack()}
+          />
         </View>
       </SafeAreaView>
     );
   }
+
+  const hasTimeline = activeTrack.durationMs > 0;
 
   return (
     <SafeAreaView style={styles.screen}>
@@ -150,8 +171,15 @@ export default function RoomScreen() {
             </Pressable>
 
             <View style={styles.roomStatus}>
-              <View style={styles.roomStatusDot} />
-              <Text style={styles.roomLabel}>LISTENING TOGETHER</Text>
+              <View
+                style={[
+                  styles.roomStatusDot,
+                  { backgroundColor: isDemo ? palette.mossBright : provider.accent },
+                ]}
+              />
+              <Text style={styles.roomLabel}>
+                LISTENING TOGETHER · {isDemo ? "DEMO" : provider.name.toUpperCase()}
+              </Text>
             </View>
 
             <Pressable onPress={leave} hitSlop={10}>
@@ -165,8 +193,28 @@ export default function RoomScreen() {
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.artworkStage}>
-              <View style={[styles.roomRing, styles.roomRingOuter, { width: artSize + 54, height: artSize + 54, borderRadius: (artSize + 54) / 2 }]} />
-              <View style={[styles.roomRing, styles.roomRingInner, { width: artSize + 26, height: artSize + 26, borderRadius: (artSize + 26) / 2 }]} />
+              <View
+                style={[
+                  styles.roomRing,
+                  styles.roomRingOuter,
+                  {
+                    width: artSize + 54,
+                    height: artSize + 54,
+                    borderRadius: (artSize + 54) / 2,
+                  },
+                ]}
+              />
+              <View
+                style={[
+                  styles.roomRing,
+                  styles.roomRingInner,
+                  {
+                    width: artSize + 26,
+                    height: artSize + 26,
+                    borderRadius: (artSize + 26) / 2,
+                  },
+                ]}
+              />
               <AlbumArtwork track={activeTrack} size={artSize} />
             </View>
 
@@ -179,17 +227,32 @@ export default function RoomScreen() {
               </Text>
             </View>
 
-            <View style={styles.progressWrap}>
-              <View style={styles.progressTrack}>
-                <View style={[styles.progressFill, { width: `${progress * 100}%` }]} />
+            {hasTimeline ? (
+              <View style={styles.progressWrap}>
+                <View style={styles.progressTrack}>
+                  <View
+                    style={[
+                      styles.progressFill,
+                      { width: `${progress * 100}%` },
+                    ]}
+                  />
+                </View>
+                <View style={styles.progressMeta}>
+                  <Text style={styles.progressTime}>
+                    {formatTime(activeTrack.progressMs)}
+                  </Text>
+                  <Text style={styles.progressTime}>
+                    -{formatTime(
+                      activeTrack.durationMs - activeTrack.progressMs
+                    )}
+                  </Text>
+                </View>
               </View>
-              <View style={styles.progressMeta}>
-                <Text style={styles.progressTime}>{formatTime(activeTrack.progressMs)}</Text>
-                <Text style={styles.progressTime}>
-                  -{formatTime(activeTrack.durationMs - activeTrack.progressMs)}
-                </Text>
-              </View>
-            </View>
+            ) : (
+              <Text style={styles.bridgeTimeline}>
+                live signal · timeline unavailable through this adapter
+              </Text>
+            )}
 
             <View style={styles.presenceSection}>
               <PresenceCluster listeners={DEMO_LISTENERS} />
@@ -198,7 +261,7 @@ export default function RoomScreen() {
             <View style={styles.quietLine}>
               <Text style={styles.quietLabel}>THE ROOM IS QUIET</Text>
               <Text style={styles.quietCopy}>
-                You don’t have to perform here. A wave or one line is enough.
+                You don't have to perform here. A wave or one line is enough.
               </Text>
             </View>
 
@@ -260,13 +323,8 @@ export default function RoomScreen() {
 }
 
 const styles = StyleSheet.create({
-  screen: {
-    flex: 1,
-    backgroundColor: palette.ink,
-  },
-  keyboard: {
-    flex: 1,
-  },
+  screen: { flex: 1, backgroundColor: palette.ink },
+  keyboard: { flex: 1 },
   roomShell: {
     flex: 1,
     width: "100%",
@@ -274,9 +332,7 @@ const styles = StyleSheet.create({
     alignSelf: "center",
     paddingHorizontal: 20,
   },
-  roomShellWide: {
-    maxWidth: 730,
-  },
+  roomShellWide: { maxWidth: 730 },
   roomTopbar: {
     height: 58,
     flexDirection: "row",
@@ -293,9 +349,7 @@ const styles = StyleSheet.create({
     borderColor: palette.line,
     backgroundColor: "rgba(18,20,17,0.5)",
   },
-  iconButtonSpacer: {
-    width: 38,
-  },
+  iconButtonSpacer: { width: 38 },
   backGlyph: {
     color: palette.text,
     fontSize: 31,
@@ -303,49 +357,25 @@ const styles = StyleSheet.create({
     marginTop: -3,
     fontWeight: "300",
   },
-  roomStatus: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 7,
-  },
-  roomStatusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 6,
-    backgroundColor: palette.mossBright,
-  },
+  roomStatus: { flexDirection: "row", alignItems: "center", gap: 7 },
+  roomStatusDot: { width: 6, height: 6, borderRadius: 6 },
   roomLabel: {
     color: palette.textSoft,
     fontSize: 10,
     fontWeight: "700",
     letterSpacing: 1.2,
   },
-  leaveText: {
-    color: palette.textDim,
-    fontSize: 12,
-    paddingHorizontal: 4,
-  },
-  content: {
-    paddingTop: 24,
-    paddingBottom: 30,
-    alignItems: "stretch",
-  },
+  leaveText: { color: palette.textDim, fontSize: 12, paddingHorizontal: 4 },
+  content: { paddingTop: 24, paddingBottom: 30, alignItems: "stretch" },
   artworkStage: {
     alignItems: "center",
     justifyContent: "center",
     marginTop: 6,
     marginBottom: 32,
   },
-  roomRing: {
-    position: "absolute",
-    borderWidth: 1,
-  },
-  roomRingOuter: {
-    borderColor: "rgba(196,214,169,0.075)",
-  },
-  roomRingInner: {
-    borderColor: "rgba(196,214,169,0.13)",
-  },
+  roomRing: { position: "absolute", borderWidth: 1 },
+  roomRingOuter: { borderColor: "rgba(196,214,169,0.075)" },
+  roomRingInner: { borderColor: "rgba(196,214,169,0.13)" },
   artworkFallback: {
     borderRadius: 28,
     overflow: "hidden",
@@ -391,10 +421,7 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     fontSize: 16,
   },
-  trackBlock: {
-    alignItems: "center",
-    paddingHorizontal: 12,
-  },
+  trackBlock: { alignItems: "center", paddingHorizontal: 12 },
   trackTitle: {
     color: palette.text,
     fontSize: 28,
@@ -402,14 +429,8 @@ const styles = StyleSheet.create({
     fontWeight: "700",
     letterSpacing: -0.9,
   },
-  trackArtist: {
-    color: palette.textSoft,
-    fontSize: 14,
-    marginTop: 4,
-  },
-  progressWrap: {
-    marginTop: 24,
-  },
+  trackArtist: { color: palette.textSoft, fontSize: 14, marginTop: 4 },
+  progressWrap: { marginTop: 24 },
   progressTrack: {
     width: "100%",
     height: 2,
@@ -432,6 +453,13 @@ const styles = StyleSheet.create({
     fontSize: 10,
     fontVariant: ["tabular-nums"],
   },
+  bridgeTimeline: {
+    color: palette.textDim,
+    textAlign: "center",
+    fontSize: 10,
+    marginTop: 18,
+    letterSpacing: 0.2,
+  },
   presenceSection: {
     marginTop: 27,
     paddingVertical: 20,
@@ -439,9 +467,7 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderColor: palette.line,
   },
-  quietLine: {
-    paddingTop: 28,
-  },
+  quietLine: { paddingTop: 28 },
   quietLabel: {
     color: palette.textDim,
     fontSize: 10,
@@ -462,16 +488,8 @@ const styles = StyleSheet.create({
     borderLeftWidth: 1,
     borderLeftColor: "rgba(196,214,169,0.38)",
   },
-  messageText: {
-    color: palette.text,
-    fontSize: 14,
-    lineHeight: 20,
-  },
-  messageMeta: {
-    color: palette.textDim,
-    fontSize: 10,
-    marginTop: 6,
-  },
+  messageText: { color: palette.text, fontSize: 14, lineHeight: 20 },
+  messageMeta: { color: palette.textDim, fontSize: 10, marginTop: 6 },
   composerRow: {
     marginTop: 22,
     flexDirection: "row",
@@ -489,18 +507,9 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 7,
   },
-  waveButtonPressed: {
-    backgroundColor: "rgba(35,40,31,0.78)",
-  },
-  waveGlyph: {
-    color: palette.mossBright,
-    fontSize: 18,
-  },
-  waveText: {
-    color: palette.textSoft,
-    fontSize: 12,
-    fontWeight: "650",
-  },
+  waveButtonPressed: { backgroundColor: "rgba(35,40,31,0.78)" },
+  waveGlyph: { color: palette.mossBright, fontSize: 18 },
+  waveText: { color: palette.textSoft, fontSize: 12, fontWeight: "650" },
   composer: {
     minHeight: 46,
     flex: 1,
@@ -513,12 +522,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
   },
-  input: {
-    flex: 1,
-    color: palette.text,
-    fontSize: 13,
-    paddingVertical: 0,
-  },
+  input: { flex: 1, color: palette.text, fontSize: 13, paddingVertical: 0 },
   send: {
     width: 31,
     height: 31,
@@ -557,10 +561,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginBottom: 24,
   },
-  waitingNote: {
-    color: palette.mossBright,
-    fontSize: 27,
-  },
+  waitingNote: { color: palette.mossBright, fontSize: 27 },
   waitingTitle: {
     color: palette.text,
     fontSize: 25,
@@ -583,9 +584,5 @@ const styles = StyleSheet.create({
     paddingHorizontal: 18,
     paddingVertical: 11,
   },
-  refreshText: {
-    color: palette.text,
-    fontSize: 12,
-    fontWeight: "650",
-  },
+  refreshText: { color: palette.text, fontSize: 12, fontWeight: "650" },
 });
